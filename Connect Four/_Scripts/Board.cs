@@ -5,7 +5,7 @@ using System.Collections.Generic;
 public class Board {
 
     /// <summary>
-    /// The numbers on the board represent an empty piece, player 1 piece, or player 2 piece.
+    /// The numbers on the board represent an empty piece, player 1 piece, or player 2 piece. Player 1 is the human player, player 2 is the computer AI.
     /// </summary>
     public enum Piece
     {
@@ -93,7 +93,7 @@ public class Board {
     }
 
     /// <summary>
-    /// Checks if there is an empty cell in a row.
+    /// Checks if there is an empty cell in a column.
     /// </summary>
     /// <param name="col">The column to be checked for an empty cell.</param>
     /// <returns>True if there is an empty cell in the column, false otherwise.</returns>
@@ -159,6 +159,7 @@ public class Board {
     /// <param name="col">The column number.</param>
     /// <param name="row">The row number.</param>
     /// <returns>The piece on the board at the cell.</returns>
+
     public int getCell(int col, int row)
     {
         return numBoard[col, row];
@@ -237,7 +238,7 @@ public class Board {
     /// </summary>
     /// <param name="p">The piece to be counted.</param>
     /// <returns>The number of three in a row.</returns>
-    public int countTripples(Piece p)
+    public int countTriples(Piece p)
     {
         int count = 0;
 

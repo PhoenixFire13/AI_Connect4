@@ -19,6 +19,8 @@ namespace ConnectFour
 		public int numRows = 6;
 		[Range(3, 8)]
 		public int numColumns = 7;
+        [Range(4, 10)]
+        public int depth = 4;
 
 		[Tooltip("How many pieces have to be connected to win.")]
 		public int numPiecesToWin = 4;
@@ -63,6 +65,8 @@ namespace ConnectFour
 
 		bool gameOver = false;
 		bool isCheckingForWinner = false;
+
+        int bestMove;
 
 		// Use this for initialization
 		void Start () 
@@ -191,16 +195,8 @@ namespace ConnectFour
 			
 			if(!isPlayersTurn)
 			{
-				List<int> moves = board.getPossibleMoves();
-
-				if(moves.Count > 0)
-				{
-					int column = moves[Random.Range (0, moves.Count)];
-
-					spawnPos = new Vector3(column, 0, 0);
-                    Debug.Log("Singles Player 1: " + board.countSingles(Board.Piece.Player1) + "\nDoubles Player 1: " + board.countDoubles(Board.Piece.Player1) + "\nTripples Player 1: " + board.countTripples(Board.Piece.Player1) + "\nQuadruples Player 1 :" + board.countQuadruples(Board.Piece.Player1));
-                    Debug.Log("Singles Player 2: " + board.countSingles(Board.Piece.Player2) + "\nDoubles Player 2: " + board.countDoubles(Board.Piece.Player2) + "\nTripples Player 2: " + board.countTripples(Board.Piece.Player2) + "\nQuadruples Player 2 :" + board.countQuadruples(Board.Piece.Player2));
-                }
+                float score = ComputerMove(Mathf.NegativeInfinity, Mathf.Infinity, depth, 0, Board.Piece.Player2, board);
+           		spawnPos = new Vector3(bestMove, 0, 0);
 			}
 
 			GameObject g = Instantiate(
@@ -213,38 +209,101 @@ namespace ConnectFour
 			return g;
 		}
 
-        /// <summary>
-        ///     Modify AI
-        /// </summary>
-        /// <param name="alpha"></param>
-        /// <param name="beta"></param>
-        ///     <returns>The Vector3 pos where best possible move is for AI</returns>
         // --------------------------------------------------------------------------------------------------------------
-        private int ComputerMove (float alpha, float beta, int maxDepth, int currentDepth, Board tempBoard)
+        /// <summary>
+        /// The AI managing method that uses Alphabeta Minimax. Will set the bestMove field.
+        /// </summary>
+        /// <param name="alpha">Lower bound of the optimal score.</param>
+        /// <param name="beta">Upper bound of the optimal score.</param>
+        /// <param name="maxDepth">The maximum number of levels deep in the recursion.</param>
+        /// <param name="currentDepth">The current number of the level in the recursion. Set to 0 initially to start.</param>
+        /// <param name="player">The bestMove in respect to the player.</param>
+        /// <param name="tempBoard">The current board state.</param>
+        /// <returns>End result of the recursion of the bestScore, ie. the best score possible.</returns>
+        private float ComputerMove (float alpha, float beta, int maxDepth, int currentDepth, Board.Piece player, Board tempBoard)
         {
             // base case
-            if (board.countQuadruples(isPlayersTurn ? Board.Piece.Player1 : Board.Piece.Player2) > 0 || currentDepth == maxDepth)
-                EvaluateScore(tempBoard);
-
-            // set initial values
-            float bestScore = Mathf.Infinity;
-            if (isPlayersTurn)
-                bestScore = Mathf.NegativeInfinity;
-
-            foreach (int move in board.getPossibleMoves())
+            if (board.countQuadruples(player) > 0 || currentDepth == maxDepth)
             {
-                tempBoard.setCell(move, tempBoard.getEmptyCell(move), (isPlayersTurn ? Board.Piece.Player1 : Board.Piece.Player2));
-
+                //Debug.Log("Board Score : " + EvaluateScore(tempBoard, player));
+                return EvaluateScore(tempBoard, player);
             }
 
-            return 0;
+            // set initial values
+            float bestScore;
+            float tempScore;
+            int row;
+            Board.Piece other = (player == Board.Piece.Player1 ? Board.Piece.Player2 : Board.Piece.Player1);
+
+            //If this is true then it means that it is the maximizing player's turn.
+            if (currentDepth % 2 == 0)
+            {
+                //bestScore has to be overwritten with a larger number, therefore it starts at smallest possible.
+                bestScore = Mathf.NegativeInfinity;
+                foreach (int move in board.getPossibleMoves())
+                {
+                    tempScore = bestScore;
+
+                    row = tempBoard.getEmptyCell(move);
+                    tempBoard.setCell(move, row, player);
+
+                    bestScore = Mathf.Max(bestScore, ComputerMove(alpha, beta, maxDepth, currentDepth + 1, player, tempBoard));
+                    bestMove = tempScore == bestScore ? bestMove : move;
+
+                    tempBoard.setCell(move, row, Board.Piece.Empty);
+                    alpha = Mathf.Max(alpha, bestScore);
+                    if (beta >= alpha)
+                        break;
+                }
+            }
+
+            //The opponent's turn or the minimizing player's turn.
+            else
+            {
+                //bestScore has to be overwritten with a smaller number, therefore it starts at the largest number possible.
+                bestScore = Mathf.Infinity;
+                foreach (int move in board.getPossibleMoves())
+                {
+                    tempScore = bestScore;
+
+                    row = tempBoard.getEmptyCell(move);
+                    tempBoard.setCell(move, row, other);
+
+                    bestScore = Mathf.Min(bestScore, ComputerMove(alpha, beta, maxDepth, currentDepth + 1, player, tempBoard));
+                    bestMove = bestMove = tempScore == bestScore ? bestMove : move;
+
+                    tempBoard.setCell(move, row, Board.Piece.Empty);
+                    beta = Mathf.Min(beta, bestScore);
+                    if (beta <= alpha)
+                        break;
+                }
+            }
+
+            Debug.Log("Best Move : " + bestMove);
+            //Debug.Log("Best Score : " + bestScore);
+            return bestScore;
         }
 
-        private float EvaluateScore(Board b)
+        /// <summary>
+        /// Evaluates the board based on how many pieces of a kind there are in a row. The more a player has in a row, the greater their score will be.
+        /// </summary>
+        /// <param name="b">The board that will be evaluated for a score.</param>
+        /// <param name="p">The piece on the board in which the score is taken in respect to.</param>
+        /// <returns>The total score of the board in respect to the piece.</returns>
+        private float EvaluateScore(Board b, Board.Piece p)
         {
-            float bestScore;
+            float score = 0;
 
-            return bestScore;
+            //The opposing piece is called other. If the parameter p is Player 1, then other is Player 2. If p is Player 2, then other is player 1.
+            Board.Piece other = (p == Board.Piece.Player1 ? Board.Piece.Player2 : Board.Piece.Player1);
+
+            //The score from each type of pairing. The count of p is positive and the opponent is negative.
+            score += (b.countSingles(p) - b.countSingles(other)) * (int)Point.One;
+            score += (b.countDoubles(p) - b.countDoubles(other)) * (int)Point.Two;
+            score += (b.countTriples(p) - b.countTriples(other)) * (int)Point.Three;
+            score += (b.countQuadruples(p) - b.countQuadruples(other)) * (int)Point.Four;
+
+            return score;
         }
         // --------------------------------------------------------------------------------------------------------------
 
@@ -301,9 +360,7 @@ namespace ConnectFour
                 foundFreeCell = true;
 
                 int row = board.getEmptyCell(x);
-                Debug.Log(row);
                 board.setCell(x, row, isPlayersTurn ? Board.Piece.Player1 : Board.Piece.Player2);
-                Debug.Log(board.getCell(x, row));
                 endPosition = new Vector3(x, row * -1, startPosition.z);
             }
             
@@ -341,7 +398,10 @@ namespace ConnectFour
 
 			isDropping = false;
 
-			yield return 0;
+            //Debug.Log("Singles Player 1: " + board.countSingles(Board.Piece.Player1) + "\nDoubles Player 1: " + board.countDoubles(Board.Piece.Player1) + "\nTripples Player 1: " + board.countTriples(Board.Piece.Player1) + "\nQuadruples Player 1 :" + board.countQuadruples(Board.Piece.Player1));
+            //Debug.Log("Singles Player 2: " + board.countSingles(Board.Piece.Player2) + "\nDoubles Player 2: " + board.countDoubles(Board.Piece.Player2) + "\nTripples Player 2: " + board.countTriples(Board.Piece.Player2) + "\nQuadruples Player 2 :" + board.countQuadruples(Board.Piece.Player2));
+
+            yield return 0;
 		}
       
         // --------------------------------------------------------------------------------------------------------------
