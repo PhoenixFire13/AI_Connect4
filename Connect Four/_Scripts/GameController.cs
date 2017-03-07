@@ -7,13 +7,6 @@ namespace ConnectFour
 {
 	public class GameController : MonoBehaviour 
 	{
-		enum Piece
-		{
-			Empty = 0,
-			Blue = 1,
-			Red = 2
-		}
-
         enum Point
         {
             One = 1,
@@ -55,17 +48,13 @@ namespace ConnectFour
 		// temporary gameobject, holds the piece at mouse position until the mouse has clicked
 		GameObject gameObjectTurn;
 
-        // holds best move and score
-        Vector3 bestMoveAI;
-        float bestScore;
-
-		/// <summary>
-		/// The Game field.
-		/// 0 = Empty
-		/// 1 = Blue
-		/// 2 = Red
-		/// </summary>
-		int[,] field;
+        /// <summary>
+        /// The Game field.
+        /// 0 = Empty
+        /// 1 = Blue
+        /// 2 = Red
+        /// </summary>
+        Board board;
 
 		bool isPlayersTurn = true;
 		bool isLoading = true;
@@ -88,6 +77,7 @@ namespace ConnectFour
 			isPlayersTurn = System.Convert.ToBoolean(Random.Range (0, 1));
 
 			btnPlayAgainOrigColor = btnPlayAgain.GetComponent<Renderer>().material.color;
+
 		}
 
 		/// <summary>
@@ -107,13 +97,12 @@ namespace ConnectFour
 			}
 			gameObjectField = new GameObject("Field");
 
-			// create an empty field and instantiate the cells
-			field = new int[numColumns, numRows];
+            // create an empty field and instantiate the cells
+            board = new Board(numRows, numColumns);
 			for(int x = 0; x < numColumns; x++)
 			{
 				for(int y = 0; y < numRows; y++)
 				{
-					field[x, y] = (int)Piece.Empty;
 					GameObject g = Instantiate(pieceField, new Vector3(x, y * -1, -1), Quaternion.identity) as GameObject;
 					g.transform.parent = gameObjectField.transform;
 				}
@@ -200,28 +189,19 @@ namespace ConnectFour
 		{
 			Vector3 spawnPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
 			
-            /* --------------------------------------------------------------------------------------------------------------		
 			if(!isPlayersTurn)
 			{
-				List<int> moves = GetPossibleMoves();
+				List<int> moves = board.getPossibleMoves();
 
 				if(moves.Count > 0)
 				{
 					int column = moves[Random.Range (0, moves.Count)];
 
 					spawnPos = new Vector3(column, 0, 0);
-
-                    // debug
-                    Debug.Log(spawnPos);
+                    Debug.Log("Singles Player 1: " + board.countSingles(Board.Piece.Player1) + "\nDoubles Player 1: " + board.countDoubles(Board.Piece.Player1) + "\nTripples Player 1: " + board.countTripples(Board.Piece.Player1) + "\nQuadruples Player 1 :" + board.countQuadruples(Board.Piece.Player1));
+                    Debug.Log("Singles Player 2: " + board.countSingles(Board.Piece.Player2) + "\nDoubles Player 2: " + board.countDoubles(Board.Piece.Player2) + "\nTripples Player 2: " + board.countTripples(Board.Piece.Player2) + "\nQuadruples Player 2 :" + board.countQuadruples(Board.Piece.Player2));
                 }
 			}
-            // -------------------------------------------------------------------------------------------------------------- */
-
-            if (!isPlayersTurn)
-            {
-
-                // spawnPos = ComputerMove();
-            }
 
 			GameObject g = Instantiate(
 					isPlayersTurn ? pieceBlue : pieceRed, // is players turn = spawn blue, else spawn red
@@ -240,101 +220,29 @@ namespace ConnectFour
         /// <param name="beta"></param>
         ///     <returns>The Vector3 pos where best possible move is for AI</returns>
         // --------------------------------------------------------------------------------------------------------------
-        private Vector3 ComputerMove (float alpha, float beta, int maxDepth, int currentDepth)
+        private int ComputerMove (float alpha, float beta, int maxDepth, int currentDepth, Board tempBoard)
         {
+            // base case
+            if (board.countQuadruples(isPlayersTurn ? Board.Piece.Player1 : Board.Piece.Player2) > 0 || currentDepth == maxDepth)
+                EvaluateScore(tempBoard);
+
             // set initial values
-            bestScore = Mathf.Infinity;
+            float bestScore = Mathf.Infinity;
             if (isPlayersTurn)
                 bestScore = Mathf.NegativeInfinity;
 
-            // base case
-            if (gameOver || currentDepth == maxDepth)
-                StartCoroutine(Won());
+            foreach (int move in board.getPossibleMoves())
+            {
+                tempBoard.setCell(move, tempBoard.getEmptyCell(move), (isPlayersTurn ? Board.Piece.Player1 : Board.Piece.Player2));
 
+            }
 
-
-            return bestMoveAI;
+            return 0;
         }
 
-        private float EvaluteBestScore()
+        private float EvaluateScore(Board b)
         {
-            for (int x = 0; x < numColumns; x++)
-            {
-                for (int y = 0; y < numRows; y++)
-                {
-                    // Get the Laymask to Raycast against, if its Players turn only include
-                    // Layermask Blue otherwise Layermask Red
-                    int layermask = isPlayersTurn ? (1 << 8) : (1 << 9);
-
-                    // If its Players turn ignore red as Starting piece and wise versa
-                    if (field[x, y] != (isPlayersTurn ? (int)Piece.Blue : (int)Piece.Red))
-                    {
-                        continue;
-                    }
-
-                    // test for all fours, threes, doubles, and singles in all directions
-                    for (int i = 1; i < numPiecesToWin; i++)
-                    {
-                        // shoot a ray of length 'numPiecesToWin - 1' to the right to test horizontally
-                        RaycastHit[] hitsHorz = Physics.RaycastAll(
-                            new Vector3(x, y * -1, 0),
-                            Vector3.right,
-                            numPiecesToWin - i,
-                            layermask);
-
-                        // return true (won) if enough hits
-                        if (hitsHorz.Length == numPiecesToWin - i)
-                        {
-                            gameOver = true;
-                            break;
-                        }
-
-                        // shoot a ray up to test vertically
-                        RaycastHit[] hitsVert = Physics.RaycastAll(
-                            new Vector3(x, y * -1, 0),
-                            Vector3.up,
-                            numPiecesToWin - i,
-                            layermask);
-
-                        if (hitsVert.Length == numPiecesToWin - i)
-                        {
-                            gameOver = true;
-                            break;
-                        }
-
-                        // test diagonally
-                        if (allowDiagonally)
-                        {
-                            // calculate the length of the ray to shoot diagonally
-                            float length = Vector2.Distance(new Vector2(0, 0), new Vector2(numPiecesToWin - i, numPiecesToWin - i));
-
-                            RaycastHit[] hitsDiaLeft = Physics.RaycastAll(
-                                new Vector3(x, y * -1, 0),
-                                new Vector3(-1, 1),
-                                length,
-                                layermask);
-
-                            if (hitsDiaLeft.Length == numPiecesToWin - i)
-                            {
-                                gameOver = true;
-                                break;
-                            }
-
-                            RaycastHit[] hitsDiaRight = Physics.RaycastAll(
-                                new Vector3(x, y * -1, 0),
-                                new Vector3(1, 1),
-                                length,
-                                layermask);
-
-                            if (hitsDiaRight.Length == numPiecesToWin - i)
-                            {
-                                gameOver = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
+            float bestScore;
 
             return bestScore;
         }
@@ -369,27 +277,6 @@ namespace ConnectFour
             }
         }
 
-        /// <summary>
-        /// Gets all the possible moves.
-        /// </summary>
-        /// <returns>The possible moves.</returns>
-        public List<int> GetPossibleMoves()
-		{
-			List<int> possibleMoves = new List<int>();
-			for (int x = 0; x < numColumns; x++)
-			{
-				for(int y = numRows - 1; y >= 0; y--)
-				{
-					if(field[x, y] == (int)Piece.Empty)
-					{
-						possibleMoves.Add(x);
-						break;
-					}
-				}
-			}
-			return possibleMoves;
-		}
-
 		/// <summary>
 		/// This method searches for a empty cell and lets 
 		/// the object fall down into this cell
@@ -408,18 +295,18 @@ namespace ConnectFour
 
 			// is there a free cell in the selected column?
 			bool foundFreeCell = false;
-			for(int i = numRows-1; i >= 0; i--)
-			{
-				if(field[x, i] == 0)
-				{
-					foundFreeCell = true;
-					field[x, i] = isPlayersTurn ? (int)Piece.Blue : (int)Piece.Red;
-					endPosition = new Vector3(x, i * -1, startPosition.z);
 
-					break;
-				}
-			}
+            if (board.containsEmptyCell(x))
+            {
+                foundFreeCell = true;
 
+                int row = board.getEmptyCell(x);
+                Debug.Log(row);
+                board.setCell(x, row, isPlayersTurn ? Board.Piece.Player1 : Board.Piece.Player2);
+                Debug.Log(board.getCell(x, row));
+                endPosition = new Vector3(x, row * -1, startPosition.z);
+            }
+            
 			if(foundFreeCell)
 			{
 				// Instantiate a new Piece, disable the temporary
@@ -474,7 +361,7 @@ namespace ConnectFour
 					int layermask = isPlayersTurn ? (1 << 8) : (1 << 9);
 
 					// If its Players turn ignore red as Starting piece and wise versa
-					if(field[x, y] != (isPlayersTurn ? (int)Piece.Blue : (int)Piece.Red))
+					if(board.getCell(x, y) != (isPlayersTurn ? (int)Board.Piece.Player1 : (int)Board.Piece.Player2))
 					{
 						continue;
 					}
@@ -543,7 +430,6 @@ namespace ConnectFour
 				yield return null;
 			}
 
-            /*
 			// if Game Over update the winning text to show who has won
 			if(gameOver == true)
 			{
@@ -552,35 +438,17 @@ namespace ConnectFour
 			else 
 			{
 				// check if there are any empty cells left, if not set game over and update text to show a draw
-				if(!FieldContainsEmptyCell())
+				if(!board.containsEmptyCell())
 				{
 					gameOver = true;
 					winningText.GetComponent<TextMesh>().text = drawText;
 				}
 			}
-            */
 
 			isCheckingForWinner = false;
 
 			yield return 0;
 		}
         // --------------------------------------------------------------------------------------------------------------
-
-        /// <summary>
-        /// check if the field contains an empty cell
-        /// </summary>
-        /// <returns><c>true</c>, if it contains empty cell, <c>false</c> otherwise.</returns>
-        bool FieldContainsEmptyCell()
-		{
-			for(int x = 0; x < numColumns; x++)
-			{
-				for(int y = 0; y < numRows; y++)
-				{
-					if(field[x, y] == (int)Piece.Empty)
-						return true;
-				}
-			}
-			return false;
-		}
 	}
 }
