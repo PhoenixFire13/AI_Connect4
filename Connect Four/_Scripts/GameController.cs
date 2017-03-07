@@ -245,14 +245,16 @@ namespace ConnectFour
                     tempScore = bestScore;
 
                     row = tempBoard.getEmptyCell(move);
+                    alpha = Mathf.Max(alpha, bestScore);
                     tempBoard.setCell(move, row, player);
 
-                    bestScore = Mathf.Max(bestScore, ComputerMove(alpha, beta, maxDepth, currentDepth + 1, player, tempBoard));
-                    bestMove = tempScore == bestScore ? bestMove : move;
+                    bestScore = Mathf.Max(bestScore, ComputerMove(-beta, -alpha, maxDepth, currentDepth + 1, player, tempBoard));
+                    if (currentDepth == 0)
+                        bestMove = tempScore == bestScore ? bestMove : move;
 
                     tempBoard.setCell(move, row, Board.Piece.Empty);
-                    alpha = Mathf.Max(alpha, bestScore);
-                    if (beta >= alpha)
+
+                    if (beta <= alpha)
                         break;
                 }
             }
@@ -269,11 +271,13 @@ namespace ConnectFour
                     row = tempBoard.getEmptyCell(move);
                     tempBoard.setCell(move, row, other);
 
-                    bestScore = Mathf.Min(bestScore, ComputerMove(alpha, beta, maxDepth, currentDepth + 1, player, tempBoard));
-                    bestMove = bestMove = tempScore == bestScore ? bestMove : move;
+                    bestScore = Mathf.Min(bestScore, ComputerMove(-beta, -alpha, maxDepth, currentDepth + 1, player, tempBoard));
+                    if (currentDepth == 0)
+                        bestMove = bestMove = tempScore == bestScore ? bestMove : move;
+
+                    beta = Mathf.Min(beta, bestScore);
 
                     tempBoard.setCell(move, row, Board.Piece.Empty);
-                    beta = Mathf.Min(beta, bestScore);
                     if (beta <= alpha)
                         break;
                 }
